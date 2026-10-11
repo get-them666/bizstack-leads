@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bizstack-leads"
+version = "0.1.0"
+description = "Shared lead pipeline (lifecycle, intake, queue, outreach) for BizStack apps."
+readme = "README.md"
+requires-python = ">=3.10"
+# psycopg is the only runtime dependency, and only for the connection type the
+# callers pass in; the package never opens a connection itself, so the apps keep
+# owning their DATABASE_URL and pool settings.
+dependencies = ["psycopg[binary]>=3.1.18"]
+
+[tool.setuptools.packages.find]
+include = ["bizstack_leads*"]
