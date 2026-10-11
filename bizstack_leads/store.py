@@ -22,6 +22,12 @@ WRITABLE_FIELDS = (
     "name", "phone", "email", "address", "description", "project_type",
     "source", "source_ref", "company", "status", "notes", "draft_reply",
     "campaign", "listing_url", "do_not_contact",
+    # Business/estimate extras some apps set at intake. Filtered against the
+    # real table before use, so a column one app's schema lacks is simply
+    # ignored rather than failing the insert.
+    "budget", "timeline", "referral_code", "partner_id", "created_at",
+    "funding_needed", "funding_use", "analysis_json",
+    "property_sqft", "estimate_low_cents", "estimate_high_cents", "estimate_json",
 )
 
 

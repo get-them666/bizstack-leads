@@ -119,7 +119,20 @@ FOLLOW_UP_DAYS = 3
 
 
 def is_reachable(lead) -> bool:
-    return bool((lead.get("phone") or "").strip() or (lead.get("email") or "").strip())
+    """Whether anyone can actually reach this person.
+
+    ``@lead.local`` is the shared placeholder convention for a lead that has no
+    real contact details yet -- the permit importer writes
+    ``con-permit-<hash>@lead.local`` and the reddit scan writes
+    ``con-radar-...@lead.local``. It is not a mailbox, so a lead carrying only
+    that email is not reachable and belongs in the ``enrich`` bucket, never the
+    outreach sweep.
+    """
+    phone = (lead.get("phone") or "").strip()
+    email = (lead.get("email") or "").strip().lower()
+    if email.endswith("@lead.local"):
+        email = ""
+    return bool(phone or email)
 
 
 def _as_dt(value):

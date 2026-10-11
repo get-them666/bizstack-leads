@@ -102,6 +102,37 @@ class IntakeTests(PipelineTestCase):
         self.assertEqual(merged["next_action"], lifecycle.ACTION_FIRST_TOUCH)
 
 
+class PlaceholderContactTests(PipelineTestCase):
+    def test_an_lead_local_placeholder_email_is_not_reachable(self):
+        # The permit importer / reddit scans write a fake @lead.local mailbox so
+        # the NOT NULL email column is never NULL. It must not count as a real
+        # contact detail, or those leads would be auto-contacted by the sweep.
+        self.assertFalse(lifecycle.is_reachable({"phone": "", "email": "con-permit-abc@lead.local"}))
+        self.assertTrue(lifecycle.is_reachable({"phone": "7575550101", "email": "con-permit-abc@lead.local"}))
+        r = self.intake(name="Permit", address="2 Elm", phone="", email="con-permit-abc@lead.local")
+        self.assertEqual(r["next_action"], lifecycle.ACTION_ENRICH)
+
+    def test_intake_persists_app_specific_extra_columns(self):
+        from datetime import datetime
+        r = self.intake(
+            name="Job", phone="7575550199", source="backlog",
+            extra={
+                "budget": "$12k", "timeline": "asap",
+                "estimate_low_cents": 100000, "estimate_high_cents": 150000,
+                "created_at": datetime(2024, 5, 1, tzinfo=timezone.utc),
+            },
+        )
+        lead = store.get_lead(self.db, r["lead_id"])
+        self.assertEqual(lead["budget"], "$12k")
+        self.assertEqual(lead["timeline"], "asap")
+        self.assertEqual(lead["estimate_low_cents"], 100000)
+        self.assertEqual(lead["created_at"].year, 2024)
+
+    def test_unknown_extra_columns_are_ignored_not_fatal(self):
+        r = self.intake(name="Safe", phone="1", extra={"no_such_column": 42})
+        self.assertTrue(r["created"])
+
+
 class QueueTests(PipelineTestCase):
     def test_buckets_group_by_action_most_urgent_first(self):
         self.intake(name="Cold", phone="1")

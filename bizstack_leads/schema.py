@@ -124,3 +124,24 @@ def create_schema(db) -> None:
         )
         db.commit()
     ensure_schema(db)
+    # Test schema is a representative subset of the real table (which the apps
+    # own). These extras exist in production's leads table, so mirror them here
+    # or the WRITABLE_FIELDS filtering can't be exercised by the tests.
+    for name, ddl in (
+        ("budget", "VARCHAR(80)"),
+        ("timeline", "VARCHAR(120)"),
+        ("referral_code", "VARCHAR(80)"),
+        ("campaign", "VARCHAR(80)"),
+        ("listing_url", "VARCHAR(512)"),
+        ("analysis_json", "TEXT"),
+        ("funding_needed", "VARCHAR(255)"),
+        ("funding_use", "TEXT"),
+        ("partner_id", "INTEGER"),
+        ("property_sqft", "INTEGER"),
+        ("estimate_low_cents", "INTEGER"),
+        ("estimate_high_cents", "INTEGER"),
+        ("estimate_json", "TEXT"),
+    ):
+        with db.cursor() as cur:
+            cur.execute(f"ALTER TABLE leads ADD COLUMN IF NOT EXISTS {name} {ddl};")
+    db.commit()
