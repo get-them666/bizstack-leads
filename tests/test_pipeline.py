@@ -117,6 +117,33 @@ class QueueTests(PipelineTestCase):
         self.assertEqual(c[lifecycle.ACTION_FIRST_TOUCH], 1)
         self.assertEqual(c[lifecycle.ACTION_RESPOND], 0)
 
+    def test_group_is_pure_and_buckets_by_action(self):
+        rows = [
+            {"id": 1, "next_action": lifecycle.ACTION_RESPOND},
+            {"id": 2, "next_action": lifecycle.ACTION_FIRST_TOUCH},
+            {"id": 3, "next_action": lifecycle.ACTION_RESPOND},
+        ]
+        out = queue.group(rows)
+        self.assertEqual(out[0]["action"], lifecycle.ACTION_RESPOND)
+        self.assertEqual(out[0]["count"], 2)
+
+    def test_closed_leads_are_hidden_unless_asked_for(self):
+        won = self.intake(name="Won", phone="1")["lead_id"]
+        self.intake(name="Open", phone="2")
+        store.set_stage(self.db, won, lifecycle.WON)
+        open_names = [b["leads"] for b in queue.buckets(self.db, "broom")]
+        self.assertNotIn("Won", [l["name"] for group in open_names for l in group])
+        allb = queue.buckets(self.db, "broom", include_closed=True)
+        self.assertIn("Won", [l["name"] for group in [b["leads"] for b in allb] for l in group])
+
+    def test_where_extra_layers_an_app_policy_onto_the_query(self):
+        self.intake(name="Keep", phone="1", source="website")
+        self.intake(name="Hide", phone="2", source="sam-gov")
+        buckets = queue.buckets(self.db, "broom", where_extra="source <> %s", extra_params=("sam-gov",))
+        names = [l["name"] for b in buckets for l in b["leads"]]
+        self.assertIn("Keep", names)
+        self.assertNotIn("Hide", names)
+
 
 class TouchAndStageTests(PipelineTestCase):
     def test_manual_touch_moves_new_to_contacted(self):

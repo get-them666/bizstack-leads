@@ -321,7 +321,14 @@ def clear_draft(db, lead_id) -> bool:
     return bool(row)
 
 
-def list_leads(db, company=None, *, action=None, stage=None, q="", limit=500):
+def list_leads(db, company=None, *, action=None, stage=None, q="", limit=500,
+               include_closed=False, where_extra="", extra_params=()):
+    """Open leads, logically first.
+
+    ``where_extra`` / ``extra_params`` let an app layer its own policy (source
+    visibility, a campaign, a partner scope) onto the query without the package
+    having to know about it. ``where_extra`` is a bare SQL condition, ANDed on.
+    """
     where, params = [], []
     if company:
         where.append("company = %s")
@@ -332,7 +339,7 @@ def list_leads(db, company=None, *, action=None, stage=None, q="", limit=500):
     if stage:
         where.append("status = %s")
         params.append(stage)
-    else:
+    elif not include_closed:
         where.append("status <> ALL(%s)")
         params.append(list(lifecycle.CLOSED_STAGES))
     term = (q or "").strip()
@@ -343,6 +350,9 @@ def list_leads(db, company=None, *, action=None, stage=None, q="", limit=500):
             "OR address ILIKE %s)"
         )
         params += [like, like, like, like]
+    if where_extra:
+        where.append(where_extra)
+        params += list(extra_params)
     clause = ("WHERE " + " AND ".join(where)) if where else ""
     with db.cursor() as cur:
         cur.execute(
@@ -383,12 +393,15 @@ def stage_counts(db, company=None) -> dict:
         return {r["status"]: r["c"] for r in cur.fetchall()}
 
 
-def draft_count(db, company=None) -> int:
+def draft_count(db, company=None, *, where_extra="", extra_params=()) -> int:
     where, params = [], []
     if company:
         where.append("company = %s")
         params.append(company)
     where.append("draft_reply IS NOT NULL AND LOWER(COALESCE(draft_reply, '')) <> ''")
+    if where_extra:
+        where.append(where_extra)
+        params += list(extra_params)
     with db.cursor() as cur:
         cur.execute(f"SELECT COUNT(*)::int AS c FROM leads WHERE {' AND '.join(where)};", tuple(params))
         return cur.fetchone()["c"]

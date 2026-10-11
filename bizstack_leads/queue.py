@@ -13,13 +13,14 @@ from __future__ import annotations
 from . import lifecycle, store
 
 
-def buckets(db, company=None, *, q="", limit=500) -> list[dict]:
-    """Group open leads by next action.
+def group(rows) -> list[dict]:
+    """Group already-fetched lead rows by next action.
 
-    Returns ``[{action, label, leads, count}]`` in :data:`ACTION_ORDER`, with
-    empty buckets dropped so the page is only as long as the work.
+    Pure, so a route that has to apply its own SQL policy (source visibility,
+    say) can still present the standard buckets. Returns
+    ``[{action, label, leads, count}]`` in :data:`ACTION_ORDER`, empty buckets
+    dropped so the page is only as long as the work.
     """
-    rows = store.list_leads(db, company, q=q, limit=limit)
     by_action: dict[str, list] = {}
     for row in rows:
         action = row.get("next_action") or lifecycle.ACTION_FIRST_TOUCH
@@ -37,6 +38,23 @@ def buckets(db, company=None, *, q="", limit=500) -> list[dict]:
             "count": len(leads),
         })
     return out
+
+
+def buckets(db, company=None, *, q="", limit=500, where_extra="", extra_params=(),
+            include_closed=False) -> list[dict]:
+    """Fetch and group open leads by next action."""
+    rows = store.list_leads(
+        db, company, q=q, limit=limit,
+        where_extra=where_extra, extra_params=extra_params,
+        include_closed=include_closed,
+    )
+    return group(rows)
+
+
+def action_counts(buckets_list) -> dict:
+    """Zero-filled action -> count for a buckets result, for the tab badges."""
+    present = {b["action"]: b["count"] for b in buckets_list}
+    return {action: present.get(action, 0) for action in lifecycle.ACTION_ORDER}
 
 
 def counts(db, company=None) -> dict:
